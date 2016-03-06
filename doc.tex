@@ -1,0 +1,180 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{amsthm}
+
+\usepackage[left=2.0cm, right=2.0cm, top=2.50cm, bottom=2.5cm]{geometry}
+\author{Nicolas VUAILLE}
+\title{Algorithme de propagation}
+\date{\today}
+
+\newtheorem{presup}{Présupposé}
+%\renewcommand{\qedsymbol}{}
+
+\begin{document}
+\maketitle
+
+\section{Intro}
+%TODO Blablater, citer les trucs de Simon ... Les problèmes arrivent aux conjonctions, sinon on transmet facilement l'info de proche en proche.\\
+
+\begin{figure}[h]
+\centering
+	\input{general.tex}
+	\schemaScenario general
+	\caption{Schéma général d'une conjonction de deux branches}
+	\label{S:general}
+\end{figure}
+
+La figure \ref{S:general} présente un extrait de scenario, contenant une branche T0 - T3 - T4 - T5 et une autre T1 - T2 - T4 - T5. Le noeud T4 devant avoir une unique date, il s'en suit que l'exécution d'une branche va dépendre de l'autre.
+
+
+\begin{presup}
+Pour chaque contrainte, la chronologié min - défaut - max est bien assurée.
+\label{P:Chronologie}
+\end{presup}
+
+\begin{presup}
+Le scenario possède au moins une solution d'exécution cohérente.
+\label{P:Executabilite}
+\end{presup}
+\begin{proof}[Explication]
+Ceci est facilement garantit lorsque l'édition se fait sur une interface graphique : il y a bijection entre l'axe chronologique du dessin et le temps.
+\end{proof}
+
+\section{Notation}
+Les contraintes portent des informations de durées, donc de dates relatives à leur début. Ce sont les valeurs auxquelles on a accès en lecture immédiate et en écriture. Or le problème de cohérence porte sur la date absolue d'un timenode. Celle ci est comprise dans un intervalle connu à l'avance par propagation des contraintes (cf trucs de Simon) et n'est donc pas modifiable directment. On note : 
+\begin{itemize}
+\item $Cx$ la durée quelconque d'une contrainte,
+\item $Cx_m$ sa durée min,
+\item $Cx_M$ sa durée max,
+\item $Tx$ la date quelconque d'un timenode,
+\item $Tx_m$ sa date min,
+\item $Tx_M$ sa date max.
+\end{itemize}
+
+\paragraph*{}
+Dans notre exemple on considère \begin{equation} T0 = T0_m = T0_M \text{ et } T1 = T1_m = T1_M \end{equation}
+On peut donc déduire \begin{equation}T3_m = T0 + C1_m \text{ et } T3_M = T0 + C1_M \label{E:T3}\end{equation}
+De même pour T2 \begin{equation}T2_m = T1 + C2_m \text{ et } T2_M = T1 + C2_M \label{E:T2} \end{equation}
+
+Puisqu'on peut déduire l'intervalle d'un timenode en fonction du timenode précédent et de la contrainte qui les relie, on peut remonter récursivement ainsi jusqu'à un timenode de date connue (au plus loin il s'agira du timenode de Start, à $t=0$). Prenons exemple avec $T4$ : 
+\begin{eqnarray} 
+T4_m = T2_m + C3_m & T4_M = T2_M + C3_M \\
+T4_m = T3_m + C4_m & T4_M = T3_M + C4_M \nonumber
+\label{E:coherence}
+\end{eqnarray}
+
+D'après (\ref{E:T3}) et (\ref{E:T2}) on a :
+\begin{eqnarray} 
+T4_m = T1 + C2_m + C3_m \\
+T4_m = T0 + C1_m + C4_m \nonumber
+\label{E:conjonction}
+\end{eqnarray}
+
+(On peut procéder identiquement pour les maximums). \\
+Les durées des contraires étant données sans présupposé, les deux valeurs obtenus pour $T4_m$ n'ont donc aucune raison d'être identique. Cependant elles doivent l'être lors de l'exécution. Le but du ce document est donc de montrer comment recalculer les valeurs min et max des contraintes afin d'assurer une cohérence lors de l'exécution.\\
+
+Dans le cas présenté, \textit{a priori} la modification d'une seule valeur (et donc d'une seule contrainte) suffit. Mais afin de respecter le présupposé \ref{P:Chronologie} on peut être amené à modifier deux contraintes. De plus, deux stratégies semblent s'opposer (sur leurs sémantiques) : agrandire ou réduire l'intervalle min-max, c'est à dire faire au plus flexible ou au plus restreint.
+
+\begin{presup}
+Les modifications effectuées ne pourront que restreindre les souplesses écrites. \label{P:modif}
+\end{presup}
+\begin{proof}[Explication]
+Dans ce cas les solutions cohérentes proposées feront parties de l'ensemble des solutions initiales, tandis que l'autre stratégie en apporte de nouvelles.
+\end{proof}
+
+\section{Propagation lors de l'exécution}
+
+\begin{presup}
+Chaque durée décrite par le scenario fait partie d'une solution réalisable. \label{P:coherent}
+\end{presup}
+\begin{proof}[Explication]
+Ceci peut être vérifié, et, le cas échéant, corrigé lors de l'édition.
+\end{proof}
+
+Reprenons notre exemple initial, à une date $t>0$. On considère que $T0$ et $T1$ ont maintenant leur date effective et que le scenario est cohérent.
+
+\begin{figure}[h]
+\centering
+	\input{coherent.tex}
+	\schemaScenario coherent
+	\caption{Schéma d'un extrait cohérent de scenario (vérifie le présupposé \ref{P:coherent})}
+	\label{S:coherent}
+\end{figure}
+On peut vérifier que toutes les durées comprises dans les intervalles défnis sont réalisables, ce qu'on voit sur les figures \ref{S:coherent_min} et \ref{S:coherent_max} en prenant les valeurs extrêmes.
+
+\begin{figure}[h]
+\centering
+	\begin{minipage}{.45\textwidth}
+		\input{coherent_min.tex}
+		\schemaScenario coherent_min
+		\caption{Le scenario \ref{S:coherent} vérifie (\ref{E:coherence})}
+		\label{S:coherent_min}
+	\end{minipage} %
+	\begin{minipage}{.45\textwidth}
+		\input{coherent_max.tex}
+		\schemaScenario coherent_max
+		\caption{Vérifie (\ref{E:coherence}) translatée aux maximums}
+		\label{S:coherent_max}
+	\end{minipage} %
+\end{figure}
+
+Si $T3$ est déclenché après la date $C1_m$, cela aura pour effet de repousser $T4_m$. Mais comment cela se répercute-t'il sur 
+l'autre branche ?
+
+\begin{figure}[h]
+\centering
+	\input{coherent_exec1.tex}
+	\schemaScenario coherent_exec1
+	\caption{Une execution encore possible une fois $T3$ fixé}
+	\label{S:coherent_exec1}
+\end{figure}
+
+Mathématiquement on obtient :
+\begin{eqnarray}
+	T4'_m &=& T4_m + T3 - T3_m \\
+	T4'_M &=& T4_M + T3 - T3_M \nonumber
+\label{E:simplePropagation}
+\end{eqnarray}
+
+Par la suite on notera :
+\begin{eqnarray}
+	\Delta{}_m = T3 - T3_m = T4'_m - T4_m \\
+	\Delta{}_M = T3 - T3_M = T4'_M - T4_M \nonumber
+	\label{E:delta}
+\end{eqnarray}
+
+D'après le présupposé \ref{P:modif} on veut essayer de conserver $C2_m$ et $C2_M$, \textit{i.e.} avoir $C2'_m = C2_m$ et $C2'_M = C2_M$ . On cherche donc si il existe des valeurs de $C3$ pour lesquelles une solution est réalisable pour les valeurs extrêmes de $C2$. Littéralement, on cherche si, en prenant $C2'_m = C2_m$, $C3_M$ est assez grand pour permettre encore d'atteindre $T4'_m$, et inversement si $C3_m$ permet d'atteindre $T4$ avant son maximum.
+
+\begin{eqnarray}
+T4'_m < T1 + C2'_m + C3_M \\
+T1 + C2'_M + C3_m < T4'_M \nonumber
+\end{eqnarray}
+
+Or d'après (\ref{E:conjonction}) et (\ref{E:delta}) :
+
+\begin{eqnarray}
+T4'_m = T4_m + \Delta{}_m = T1 + C2_m + C3_m + \Delta{}_m \\
+T4'_M = T4_M + \Delta{}_M = T1 + C2_M + C3_M + \Delta{}_M \nonumber
+\end{eqnarray}
+
+On a donc :
+\begin{eqnarray}
+T1 + C2_m + C3_m + \Delta{}_m < T1 + C2'_m + C3_M \\
+T1 + C2_M + C3_M + \Delta{}_M > T1 + C2'_M + C3_m  \nonumber
+\end{eqnarray}
+
+D'où :
+\begin{eqnarray}
+C2'_m = C2_m &\Rightarrow C3_M - C3_m > \Delta{}_m \\
+C2'_M = C2_M &\Rightarrow C3_M - C3_m > -\Delta{}_M \nonumber
+\end{eqnarray}
+
+
+\end{document}
