@@ -141,7 +141,7 @@ std::vector<Node*> coherent_exec1()
   //n1 n3 n4
   auto n = new Node{0};
   auto n1 = new Node{-3};
-  auto n2 = new Node{5};
+  auto n2 = new Node{5}; // fixé
   auto n3 = new Node{7};
   auto n4 = new Node{14};
   
@@ -153,6 +153,57 @@ std::vector<Node*> coherent_exec1()
   return {n, n1, n3, n2, n4};
 }
 
+std::vector<Node*> coherent_exec_min()
+{
+  //n n2 n4
+  //n1 n3 n4
+  auto n = new Node{0};
+  auto n1 = new Node{-3};
+  auto n2 = new Node{5}; // fixé
+  auto n3 = new Node{6}; // au min
+  auto n4 = new Node{14};
+  
+  n->nextTimeRelations.push_back(new Relation{4, n2->date - n->date, 9});  
+  n1->nextTimeRelations.push_back(new Relation{9, n3->date - n1->date, 15});
+  n2->nextTimeRelations.push_back(new Relation{8, n4->date - n2->date, 12});
+  n3->nextTimeRelations.push_back(new Relation{6, n4->date - n3->date, 9});
+
+  return {n, n1, n3, n2, n4};
+}
+
+std::vector<Node*> coherent_exec_max()
+{
+  //n n2 n4
+  //n1 n3 n4
+  auto n = new Node{0};
+  auto n1 = new Node{-3};
+  auto n2 = new Node{5}; // fixé
+  auto n3 = new Node{12}; // au max
+  auto n4 = new Node{18};
+  
+  n->nextTimeRelations.push_back(new Relation{4, n2->date - n->date, 9});  
+  n1->nextTimeRelations.push_back(new Relation{9, n3->date - n1->date, 15});
+  n2->nextTimeRelations.push_back(new Relation{8, n4->date - n2->date, 12});
+  n3->nextTimeRelations.push_back(new Relation{6, n4->date - n3->date, 9});
+
+  return {n, n1, n3, n2, n4};
+}
+
+std::vector<Node*> modif_passe()
+{
+  //n n1 n2
+  //n3 n2
+  auto n = new Node{0};
+  auto n1 = new Node{7};
+  auto n2 = new Node{12}; // fixé
+  auto n3 = new Node{-3}; // au max
+  
+  n->nextTimeRelations.push_back(new Relation{4, n1->date - n->date, 11});  
+  n1->nextTimeRelations.push_back(new Relation{n2->date - n1->date});
+  n3->nextTimeRelations.push_back(new Relation{11, n2->date - n3->date, 18});
+
+  return {n, n1, n3, n2};
+}
 
 
 int main(int argc, char *argv[])
@@ -166,10 +217,10 @@ int main(int argc, char *argv[])
   std::string filename = name + ".tex";
   output.open(filename);
   
-  std::vector<Node*> timenodes = coherent_max();
+  std::vector<Node*> timenodes = modif_passe();
   
   output << "\\def\\schemaScenario " << name << "{%\n";
-  output << "\\begin{tikzpicture}[scale=0.4]%\n";
+  output << "\\begin{tikzpicture}[scale=0.3]%\n";
   
   int Tcounter = 0;
   int Ccounter = 1;
