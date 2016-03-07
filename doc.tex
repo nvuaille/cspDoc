@@ -280,14 +280,16 @@ Utilisation de jetons
 						\State Tn.token.min = $max$(token.min, Tn.token.min)
 						\State Tn.token.max = $min$(token.max, Tn.token.max)
 					\EndFor
-										
-					\State Tn.min += Tn.token.min 
-					\Comment {Mise à jour du timenode}
-					\State Tn.max += Tn.token.max
-					\State \Call {BackwardUpdate}{Tn}
-					\Comment {N'influe pas sur Tn}
-					\State \Call {ForwardUpdate}{Tn}
-					\State
+					
+					\If {Tn.token.min != 0 || Tn.token.max != 0}
+					\Comment {Jetons nuls stoppent la propagation}
+						\State Tn.min += Tn.token.min 
+						\Comment {Mise à jour du timenode}
+						\State Tn.max += Tn.token.max
+						\State \Call {BackwardUpdate}{Tn}
+						\Comment {N'influe pas sur Tn}
+						\State \Call {ForwardUpdate}{Tn}
+					\EndIf
 				\Else
 					\State tnWaiting$.add$(timenode)
 					\State continue
@@ -353,6 +355,9 @@ Utilisation de jetons
 	\end{algorithm}
 
 \newpage
+\section{Initialisation du système}
+Pour initialiser le système et obtenir un premier scenario cohérent, on peut passer l'algorithme décrit pour l'exécution en lançant des jetons nuls depuis le timenode de début de scenario et en arrêtant pas la propagation vers le futur lorsque les jetons sont nuls.
+
 \section{Limites connues}
 
 	\subsection{Modification du passé}
@@ -366,5 +371,8 @@ Utilisation de jetons
 	\end{figure}
 	
 Le scenario \ref{S:modif_passe} est cohérent et respecte les hypothèses posées dans le présent document. Néanmoins, il se pose un problème de causalité : le timenode 3 ne peut pas être celui qui sera fixé à l'exécution.
+
+	\subsection{Désactivation d'une branche}
+%TODO desactivation branche
 
 \end{document}

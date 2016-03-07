@@ -200,7 +200,7 @@ std::vector<Node*> modif_passe()
   
   n->nextTimeRelations.push_back(new Relation{4, n1->date - n->date, 11});  
   n1->nextTimeRelations.push_back(new Relation{n2->date - n1->date});
-  n3->nextTimeRelations.push_back(new Relation{11, n2->date - n3->date, 18});
+  n3->nextTimeRelations.push_back(new Relation{12, n2->date - n3->date, 19});
 
   return {n, n1, n3, n2};
 }
