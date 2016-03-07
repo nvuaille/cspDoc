@@ -1,3 +1,3 @@
 # cspDoc
 
-Latex doc (and schema generator) for algo used in OSSIA/iscore-addon-csp
+Latex doc (and schema generator) for algo used in https://github.com/OSSIA/iscore-addon-csp
