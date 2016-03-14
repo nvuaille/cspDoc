@@ -2,6 +2,7 @@
 \usepackage[utf8]{inputenc}
 \usepackage[french]{babel}
 \usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
@@ -100,8 +101,10 @@ Dans le cas présenté, \textit{a priori} la modification d'une seule valeur (et
 		Chaque durée décrite par le scenario fait partie d'une solution réalisable. \label{P:coherent}
 	\end{presup}
 	\begin{proof}[Explication]
-		Ceci peut être vérifié, et, le cas échéant, corrigé lors de l'édition.
+		Ceci peut être vérifié, et, le cas échéant, corrigé lors de l'édition (\textit{cf} section \ref{section:init} sur l'initialisation du système)
 	\end{proof}
+
+%\textbf{Correctif : } Corriger le problème de cohérence à l'édition demande une stratégie. Il faudrait donc en définir une mais je n'en trouve pas qui me plaise ...
 
 \section{Exemple de propagation lors de l'exécution}
 
@@ -222,11 +225,16 @@ Cette propagation se fait en deux étapes. La première est simple et consiste j
 \section{Algorithme général}
 	\subsection{Algorithme textuel}
 
-Lorsqu'un timenode est fixé, on propage on $\Delta{}_m$ et un $\Delta{}_M$ : on passe par ses contraintes suivantes pour atteindre de nouveaux timenodes. Les valeurs min et max de ces timenodes sont alors mises à jour. Ensuite plusieurs cas de figure : 
-	\begin{enumerate}
-		\item Toutes les contraintes précédentes sont cohérentes (elles ont apportés les deltas) : on transmet les deltas aux contraintes suivantes.
-		\item Certaines contraintes précédentes ne sont plus cohérentes : on leur transmet les deltas pour aller modifier le scenario en amont. Une fois ces modifications faites, on peut repartir de l'avant.
-	\end{enumerate}
+Demande de mise à jour d'un timenode (fonction ·\textsc{UpdateTimenode}). Si jetons manquant sur une des contraintes précédentes, mise en attente du timenode. Sinon, récupération des jetons, en conservant les plus restrictifs. Mises à jour du min et max du timenode grâce à ses jetons. On observe toutes ses contraintes précédentes, on vérifie leur cohérence et on renvoie dans le passé si besoin de corriger les valeurs. On envoie ensuite dans le futur un jeton dans toutes les contraintes qui ne portaient pas de jeton arrière. On passe au timenode suivant dans la pile. \\
+
+Une fois la pile finie, on la met à jour en faisant avancer tous les jetons (ceux qui vont de l'avant donc) des contraintes jusqu'à leur timenode. On recommence. \\
+
+Si il reste des timenodes en attente de jeton (donc une partie de leurs contraintes précédente en ont mais pas toutes), on traite ces timenodes.\\
+
+Enfin, on traite les contraintes contenant des jetons vers l'arrière : on demande la mise à jour de leur timenode de début.\\
+
+On recommence du tout début tant qu'il y a des timenodes en attente.
+
 
 	\subsection{Algorithme pseudo code}
 
@@ -245,6 +253,7 @@ Utilisation de jetons
 			\State
 			
 			\While{NOT tnToUpdate empty}
+			\Comment {Tant qu'on atteint des nouveaux timenodes}
 				\While {NOT tnToUpdate.empty} \Comment{On va de l'avant tant que possible}
 					\ForAll{tn in tnToUpdate}
 						\State \Call {UpdateTimenode}{tn}
@@ -254,8 +263,10 @@ Utilisation de jetons
 					\State clear nextStep
 				\EndWhile
 				\State tnToUpdate = waitingTn
+				\Comment {On traite ceux qui restent en attente}
 				\State clear waitingTn
 				\ForAll{cstr in constraintsWaiting}
+				\Comment {Retour en arrière}
 					\State \Call {UpdateConstraint}{cstr}
 				\EndFor
 			\EndWhile
@@ -268,7 +279,7 @@ Utilisation de jetons
 				\State Tn.token.min = 0
 				\State Tn.token.max = 0
 				
-				\If{allPreviousToken OR waiting OR backwardToken}
+				\If{allPreviousToken OR wasWaiting OR backwardToken}
 %				\Comment{Au dernier passage, on prend ceux qui restent}
 					\ForAll {token in Tn.previousTokens}
 					\Comment{Pour chaque jeton}
@@ -277,6 +288,7 @@ Utilisation de jetons
 						\State Tn.token.max = $min$(token.max, Tn.token.max)
 					\EndFor
 					\ForAll {token in Tn.nextTokens} 
+%TODO en fait je le fait dans le Update constraint
 						\State Tn.token.min = $max$(token.min, Tn.token.min)
 						\State Tn.token.max = $min$(token.max, Tn.token.max)
 					\EndFor
@@ -350,13 +362,18 @@ Utilisation de jetons
 					\State startTn.token.max = cstr.token.max + (cstr.max - cstr.min)
 					\State waitingTn$.add$(startTn)
 				\EndIf
+				\Comment {Sinon, deltas totalement absorbés}
 			\EndFunction
 		\end{algorithmic}
 	\end{algorithm}
 
 \newpage
 \section{Initialisation du système}
-Pour initialiser le système et obtenir un premier scenario cohérent, on peut passer l'algorithme décrit pour l'exécution en lançant des jetons nuls depuis le timenode de début de scenario et en arrêtant pas la propagation vers le futur lorsque les jetons sont nuls.
+\label{section:init}
+
+%Pour initialiser le système et obtenir un premier scenario cohérent, on peut utiliser un algorithme similaire. On envoie des jetons nuls vers l'avant, uniquement quand toutes les contraintes précédentes sont cohérentes. Sinon on envoie des jetons correctifs en arrière jusqu'à un timenode cohérent pour mettre à jour les contraintes et on relance l'algorithme.\\
+
+%La première fois seul le start Tn est cohérent, ensuite on arrêtera le retour arrière à la première conjonction rencontrée.
 
 \section{Limites connues}
 
@@ -369,10 +386,13 @@ Pour initialiser le système et obtenir un premier scenario cohérent, on peut p
 		\caption{}
 		\label{S:modif_passe}
 	\end{figure}
-	
-Le scenario \ref{S:modif_passe} est cohérent et respecte les hypothèses posées dans le présent document. Néanmoins, il se pose un problème de causalité : le timenode 3 ne peut pas être celui qui sera fixé à l'exécution.
+
+Le scenario \ref{S:modif_passe} est cohérent et respecte les hypothèses posées dans le présent document. Néanmoins, il se pose un problème de causalité : le timenode 3 ne peut pas être celui qui sera fixé à l'exécution. Ce problème doit donc être résolu en amont, sinon l'algorithme présenté ici risque de proposer une maximum passé pour la contrainte $C1$.
+
+%TODO souplesse sans trigger possible ! Trigger sans souplesse aussi mais peu d'interet
 
 	\subsection{Désactivation d'une branche}
 %TODO desactivation branche
+Y a t'il plus simple qu'une nouvelle initialisation ?
 
 \end{document}

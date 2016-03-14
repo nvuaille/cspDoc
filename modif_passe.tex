@@ -1,0 +1,64 @@
+\def\schemaScenario modif_passe{%
+\begin{tikzpicture}[scale=0.3]%
+\def\date{0};%
+\def\contraintName{C1};%
+\def\ypos{-2};%
+\def\min{4};%
+\def\nom{7};%
+\def\max{11};%
+\fill (\date,\ypos) circle (0.3);%
+\fill (\date+\nom,\ypos) circle (0.3);%
+\draw (\date,\ypos) -- ++(\min,0) node[midway,above,scale=1] {\contraintName};%
+\draw (\date+\min,\ypos+0.5) -- ++(0,-1);%
+\draw[dotted] (\date+\min,\ypos) -- (\date+\max,\ypos);%
+\draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
+%
+\def\nodeName{\Huge T0};%
+\def\ypos{-3};%
+\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+%
+\def\date{7};%
+\def\contraintName{C2};%
+\def\ypos{-4};%
+\def\min{5};%
+\def\nom{5};%
+\def\max{5};%
+\fill (\date,\ypos) circle (0.3);%
+\fill (\date+\nom,\ypos) circle (0.3);%
+\draw (\date,\ypos) -- ++(\min,0) node[midway,above,scale=1] {\contraintName};%
+\draw (\date+\min,\ypos+0.5) -- ++(0,-1);%
+\draw[dotted] (\date+\min,\ypos) -- (\date+\max,\ypos);%
+\draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
+%
+\def\nodeName{\Huge T1};%
+\def\ypos{-5};%
+\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+%
+\def\date{-3};%
+\def\contraintName{C3};%
+\def\ypos{-6};%
+\def\min{12};%
+\def\nom{15};%
+\def\max{19};%
+\fill (\date,\ypos) circle (0.3);%
+\fill (\date+\nom,\ypos) circle (0.3);%
+\draw (\date,\ypos) -- ++(\min,0) node[midway,above,scale=1] {\contraintName};%
+\draw (\date+\min,\ypos+0.5) -- ++(0,-1);%
+\draw[dotted] (\date+\min,\ypos) -- (\date+\max,\ypos);%
+\draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
+%
+\def\nodeName{\Huge T2};%
+\def\ypos{-7};%
+\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+%
+\def\date{12};%
+\def\nodeName{\Huge T3};%
+\def\ypos{-7};%
+\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+%
+\end{tikzpicture}%
+}
