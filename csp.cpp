@@ -205,6 +205,21 @@ std::vector<Node*> modif_passe()
   return {n, n1, n3, n2};
 }
 
+std::vector<Node*> boucles_imbriquees()
+{
+  auto n = new Node{0};
+  auto n1 = new Node{5};
+  auto n2 = new Node{8};
+  auto n3 = new Node{12};
+  
+  n->nextTimeRelations.push_back(new Relation{n1->date - n->date});
+  n->nextTimeRelations.push_back(new Relation{n2->date - n->date});
+  n1->nextTimeRelations.push_back(new Relation{n2->date - n1->date});
+  n1->nextTimeRelations.push_back(new Relation{n3->date - n1->date});
+  n2->nextTimeRelations.push_back(new Relation{n3->date - n2->date});
+
+  return {n1, n2, n3, n};
+}
 
 int main(int argc, char *argv[])
 {
@@ -217,7 +232,7 @@ int main(int argc, char *argv[])
   std::string filename = name + ".tex";
   output.open(filename);
   
-  std::vector<Node*> timenodes = modif_passe();
+  std::vector<Node*> timenodes = boucles_imbriquees();
   
   output << "\\def\\schemaScenario " << name << "{%\n";
   output << "\\begin{tikzpicture}[scale=0.3]%\n";

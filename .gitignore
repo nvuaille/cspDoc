@@ -4,5 +4,6 @@
 *.pdf
 *.gz
 *.out
+*.toc
 csp
 
