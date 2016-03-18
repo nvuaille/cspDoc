@@ -2,7 +2,7 @@
 \begin{tikzpicture}[scale=0.3]%
 \def\date{0};%
 \def\contraintName{C1};%
-\def\ypos{-2};%
+\def\ypos{-6};%
 \def\min{4};%
 \def\nom{5};%
 \def\max{9};%
@@ -14,13 +14,13 @@
 \draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
 %
 \def\nodeName{\Huge T0};%
-\def\ypos{-3};%
-\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
-\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+\def\top{\ypos+1};%
+\draw (\date,\top) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,\top+1.5) node[scale=0.5]{\nodeName};%
 %
 \def\date{-3};%
 \def\contraintName{C2};%
-\def\ypos{-4};%
+\def\ypos{-2};%
 \def\min{9};%
 \def\nom{9};%
 \def\max{15};%
@@ -32,13 +32,13 @@
 \draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
 %
 \def\nodeName{\Huge T1};%
-\def\ypos{-5};%
-\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
-\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+\def\top{\ypos+1};%
+\draw (\date,\top) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,\top+1.5) node[scale=0.5]{\nodeName};%
 %
 \def\date{6};%
 \def\contraintName{C3};%
-\def\ypos{-6};%
+\def\ypos{-4};%
 \def\min{6};%
 \def\nom{8};%
 \def\max{9};%
@@ -50,9 +50,9 @@
 \draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
 %
 \def\nodeName{\Huge T2};%
-\def\ypos{-7};%
-\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
-\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+\def\top{\ypos+3};%
+\draw (\date,\top) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,\top+1.5) node[scale=0.5]{\nodeName};%
 %
 \def\date{5};%
 \def\contraintName{C4};%
@@ -68,15 +68,15 @@
 \draw (\date+\max,\ypos+0.5) -- ++(0,-1);%
 %
 \def\nodeName{\Huge T3};%
-\def\ypos{-9};%
-\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
-\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+\def\top{\ypos+3};%
+\draw (\date,\top) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,\top+1.5) node[scale=0.5]{\nodeName};%
 %
 \def\date{14};%
 \def\nodeName{\Huge T4};%
-\def\ypos{-9};%
-\draw (\date,0) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
-\draw (\date,1.5) node[scale=0.5]{\nodeName};%
+\def\top{\ypos+5};%
+\draw (\date,\top) -- ++(-1,0.5) -- ++(0,2) -- ++(2,0) -- ++(0,-2) -- ++(-1,-0.5) -- (\date, \ypos);%
+\draw (\date,\top+1.5) node[scale=0.5]{\nodeName};%
 %
 \end{tikzpicture}%
 }

@@ -15,7 +15,7 @@
 
 \usepackage[left=2.0cm, right=2.0cm, top=2.50cm, bottom=2.5cm]{geometry}
 \author{Nicolas VUAILLE}
-\title{Algorithme de propagation}
+\title{Algorithme de propagation \\ (travail en cours)}
 \date{\today}
 
 \newtheorem{presup}{Hypothèse}
@@ -67,6 +67,8 @@ et n'est donc pas modifiable directement. On note :
 		\item $Tx$ la date quelconque d'un timenode,
 		\item $Tx_m$ sa date min,
 		\item $Tx_M$ sa date max.
+		\item $\Delta_{Cx} = Cx_M - Cx_m$ l'intervalle min-max d'une contrainte
+		\item $\Delta_{Tx} = Tx_M - Tx_m$ l'intervalle min-max d'un timenode
 	\end{itemize}
 
 \paragraph*{}
@@ -228,7 +230,7 @@ Cette propagation se fait en deux étapes. La première est simple et consiste j
 
 \section{Algorithme général}
 	\subsection{Algorithme textuel}
-
+\label{section:exec}
 Demande de mise à jour d'un timenode (fonction ·\textsc{UpdateTimenode}). Si jetons manquant sur une des contraintes précédentes, mise en attente du timenode. Sinon, récupération des jetons, en conservant les plus restrictifs. Mises à jour du min et max du timenode grâce à ses jetons. On observe toutes ses contraintes précédentes, on vérifie leur cohérence et on renvoie dans le passé si besoin de corriger les valeurs. On envoie ensuite dans le futur un jeton dans toutes les contraintes qui ne portaient pas de jeton arrière. On passe au timenode suivant dans la pile. \\
 
 Une fois la pile finie, on la met à jour en faisant avancer tous les jetons (ceux qui vont de l'avant donc) des contraintes jusqu'à leur timenode. On recommence. \\
@@ -245,7 +247,9 @@ On recommence du tout début tant qu'il y a des timenodes en attente.
 Utilisation de jetons
 
 	\begin{algorithm}
+	
 		\begin{algorithmic}[2]
+		\label{C:exec:main}
 			\State Vector<Timenode> tnToUpdate
 			\Comment{Tn de l'étape courante}
 			\State Vector<Timenode> nextStep
@@ -275,6 +279,7 @@ Utilisation de jetons
 				\EndFor
 			\EndWhile
 		\end{algorithmic}
+	\caption*{Main}
 	\end{algorithm}
 	\begin{algorithm}
 		\begin{algorithmic}[2]
@@ -375,15 +380,80 @@ Utilisation de jetons
 \section{Initialisation du système}
 \label{section:init}
 
-	\subsection{Algorithme}
-\textbf{Proposition : }\\
-A partir du timenode de début, on parcours le scenario de la même manière que précédemment. À savoir que pour passer un timenode on doit avoir rencontré toutes ses contraintes précédentes. Lorsque c'est le cas, on vérifie la cohérence des différentes branches qui arrivent, et le cas échéant on les corriges. La méthode de correction envisagée ici est une mise à l'échelle.\\
+On utilise toujours le même type d'exploration du scenario. À savoir que pour passer un timenode on doit avoir rencontré toutes ses contraintes précédentes. Lorsque c'est le cas, on vérifie la cohérence des différentes branches qui arrivent, et le cas échéant on les corriges. On propose ici deux méthodes différentes de correction.
+
+	\subsection{Méthode de modification ''au plus proche''}
+		\subsubsection{Description}
+Lorsque le timenode considérée est conflictuel, on modifie les contraintes précédentes, toujours selon \hyporef{P:modif}, en 
+
+		\subsubsection{Pseudo code}
+
+	\begin{algorithm}[htp]
+		\label{A:init:near}
+		\begin{algorithmic}[2]
+			\Function{UpdateTimenode}{Timenode Tn}
+				\If{allToken}
+				\Comment{toutes les contraintes précédentes ont un jeton}
+					\ForAll {previous constraints}
+					\Comment{Mise à jour du timenode (au plus restrictif)}
+						\State Tn.min = $max$(constraint.min + constraintStartTn.min, Tn.min)
+						\State Tn.max = $min$(constraint.max + constraintStartTn.max, Tn.max)
+					\EndFor
+					\ForAll{previous constraints}
+					\Comment{Vérification de la cohérence, retour arrière si besoin}
+						\State constraint.deltaMin = Tn.min - (constraint.min + constraintStartTn.min)
+						\If{constraint.deltaMin > 0}
+							\State constraint needs update
+							\Comment{incohérence}
+						\EndIf
+						\State constraint.deltaMax = Tn.max - (constraint.max + constraintStartTn.max)
+						\If{constraint.deltaMax < 0}
+							\State constraint needs update
+							\Comment{incohérence}
+						\EndIf
+					\EndFor
+					\If{coherency}
+						\ForAll{next constraints}
+							\State sends token
+						\EndFor
+					\EndIf
+				\EndIf
+			\EndFunction
+		\end{algorithmic}
+			\caption*{Initialisation par modification au plus proche}
+	\end{algorithm}	
+	
+	\begin{algorithm}[htp]
+		\begin{algorithmic}[2]
+			\Function{UpdateConstraint}{cstr}
+				\State deltaC = cstr.max - cstr.min
+				\If{cstr.deltaMin + abs(cstr.deltaMax) < deltaC}
+				\Comment{On peut régler totalement l'incohérence}
+					\State cstr.min += cstr.deltaMin
+					\State cstr.max += cstr.deltaMax
+				\Else
+				\Comment{cstr devient rigide et il faut corriger plus en amont}
+					\State cstr.min += cstr.deltaMin $* \frac{\text{deltaC}}{\text{cstr.deltaMin + abs(cstr.deltaMax)}} $
+					\State cstr.max += cstr.deltaMax $* \frac{\text{deltaC}}{\text{cstr.deltaMin + abs(cstr.deltaMax)}} $
+					\State new deltaMin
+					\State new deltaMax
+					\State send it back to start Tn
+				\EndIf
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+		\subsubsection{Description mathématique}
+					
+	\subsection{Méthode de mise à l'échelle}
+		\subsubsection{Description}
+ La méthode de correction envisagée ici arbitrairement est une mise à l'échelle.\\
 Lorsqu'une correction est effectuée, on repart du timenode de début et on recommence.
 
-	\subsection{Pseudo code}
-Le pseudo code en page \pageref{A:init} présente un algorithme d'initialisation du scenario.
+		\subsubsection{Pseudo code}
+Le pseudo code en page \pageref{A:init:scale} présente un algorithme d'initialisation du scenario.
 	\begin{algorithm}[htp]
-		\label{A:init}
+		\label{A:init:scale}
 		\begin{algorithmic}[2]
 			\Function{Init}{}
 				\State start Tn in stack
@@ -393,46 +463,84 @@ Le pseudo code en page \pageref{A:init} présente un algorithme d'initialisation
 			\EndFunction
 			\State
 		\end{algorithmic}
-
+		\caption*{Initialisation par mise à l'échelle}
+	\end{algorithm}		
+	\begin{algorithm}[htp]
 		\begin{algorithmic}[2]
 			\Function{InitUpdateTn}{Timenode Tn}
 				\State rm Tn from stack
 				\If{allToken}
+					\ForAll {cstr in Tn.previousConstraints}
+						\State cstr.token.min = Tn.min - (cstr.min + cstr.startTn.min)
+						\State cstr.token.max = Tn.max - (cstr.max + cstr.startTn.max)
+					\EndFor
 					\If{coherency}
-					\Comment{\textit{cf} \textsc{BackwardUpdate}}
+					\Comment{min et max des jetons nuls}
 						\State add next Timenodes to stack
 					\Else
-						\State cstr = more restrictive constraint
-						\ForAll{c in other constraint}
+						\ForAll{c in other constraints}
 							\State $T_{origin}$ = common ancestor of c and cstr
 							\Comment {timenode le plus proche}
 							\State branch = all constraint from $T_{origin}$ to c
-							\State scale branch
+							\State branch to scale
 						\EndFor
 						\State reset stack
 						\Comment {exploration en largeur}
 					\EndIf
 				\EndIf
 			\EndFunction
+			\State
 		\end{algorithmic}
-		\caption*{Pseudo-code pour l'initialisation}
+	\end{algorithm}
+	\begin{algorithm}[htp]		
+		\begin{algorithmic}[2]
+			\Function{ScaleBranches}{Timenode Tn}
+			\Comment {les branches convergent en Tn}
+				\ForAll{constraintes to modify}
+				\Comment {jeton non nul le plus petit}				
+					\State MRConstraint = the more restrictive
+					\ForAll{branches of MRConstraint}
+					\Comment{On cherche jusqu'où remonter chaque branche}
+						\ForAll{constraints non modifiable}
+						\Comment{jetons nuls}
+							\ForAll{Branches of this constraint}
+								\State find the nearest common TN ancestor
+								\State extract a sub-branch
+							\EndFor
+						\EndFor
+					\EndFor
+					\ForAll{sub-branches}
+						\State compute interval max-min
+					\EndFor
+					\State reorder sub-branches by interval size
+					\ForAll{sub-branches}
+						\State take the one with interval min
+						\State submit new min/max to constraints
+						\Comment{mise à l'échelle}
+						\State 
+					\EndFor
+				\EndFor
+			\EndFunction
+		\end{algorithmic}
+
 	\end{algorithm}
 
 	
 Prenons l'exemple de la figure \ref{S:boucles_imbriquees} en considérant toutes les contraintes souples. En explorant, le premier endroit potentiellement à problème est $T3$, convergence des branches $C1 - C3$ et $C2$. Si $C2$ est sur la branche restrictive, on modifie de l'autre côté donc $C3$ est modifiée. Ensuite on recommence l'exploration et on arrive à $T4$. Si $C4$ est sur la branche la plus restrictive, on modifie à nouveau $C3$, ce qui a forcément pour effet de restreindre $T3$ et donc de restreindre $C2$. Et l'algorithme s'arrête.
 
-	\subsection{Description mathématique de la mise à l'échelle}
+		\subsubsection{Description mathématique}
 
 On se base sur le schéma de la figure \ref{S:boucles_imbriquees}.\\
-À la convergence en $T3$, on a deux valeurs en concurrence pour $T3_m$ et $T3_M$, venant chacune d'une des branches, ce qui nous donne un $\Delta_m$ et un $\Delta_M$. On note $\Delta_{T3}$ l'intervalle le plus restrictif pour $T3$.\\
+À la convergence au timenode $T$, on a (au moins) deux valeurs en concurrence pour $T_m$ et $T_M$, venant chacune d'une des branches $B_i$, ce qui nous donne un $\Delta_{m_i}$ et un $\Delta_{M_i}$. On note $\Delta_{B_i}$ la taille de l'intervalle en $T$ issue de la propagation des contraintes de la branche $B_i$. On a $\Delta_{B_i} = \sum \Delta_{Cx} \text{ , }Cx \in B_i$ \\
 Pour chaque contrainte $Cx$ des branches convergentes, on a :
 
 \begin{eqnarray}
-	Cx_{m}' = Cx_m + \Delta_m *\frac{(Cx_M - Cx_m)}{\Delta_T3}\\
-	Cx_{M}' = Cx_m + \Delta_M *\frac{(Cx_M - Cx_m)}{\Delta_T3} \nonumber
+	\label{E:init:scale}
+	Cx_{m}' = Cx_m + \Delta_{m_i} *\frac{(Cx_M - Cx_m)}{\Delta_{B_i}}\\
+	Cx_{M}' = Cx_m + \Delta_{M_i} *\frac{(Cx_M - Cx_m)}{\Delta_{B_i}} \nonumber
 \end{eqnarray}
-
-Cette formule permet de continuer à vérifier \hyporef{P:Chronologie} et \hyporef{P:modif}.
+Le cas $\Delta_{B_i} = 0$ ne nous intéresse pas : il correspond à une branche rigide, qui est donc à la fois la plus restrictive et non modifiable.\\
+Cette formule permet de continuer à vérifier \hyporef{P:Chronologie} pour les min et max et \hyporef{P:modif}.
 
 \section{Limites connues}
 	
@@ -440,6 +548,9 @@ Cette formule permet de continuer à vérifier \hyporef{P:Chronologie} et \hypor
 %TODO desactivation branche
 Y a t'il plus simple qu'une nouvelle initialisation ?
 
+	\subsection{Max infini}
+	Vérifier ce que ça donne.
+	
 \section{Cas particuliers}
 
 	\subsection{Convergence}
@@ -483,5 +594,64 @@ Dans ce cas, $C1$ et $C3$ sont des contraintes souples, $T1$ peut posséder un t
 		\item Si $T1$ n'a pas de trigger, la souplesse n'a pas d'intérêt sémantique mais est syntaxiquement correcte.
 		\item Si $T3$ a un trigger, celui ci ne pourra être effectif que si la branche de $C2$ est désactivée.
 	\end{itemize} 
+	
+	\subsection{Convergence multiple}
+
+	\begin{figure}[htp]
+		\centering
+		\input{multi_cv.tex}
+		\schemaScenario multi_cv
+		\caption{Convergence multiple}
+		\label{S:multi_cv}
+	\end{figure}
+Dans la figure \ref{S:multi_cv} on considère que la contrainte $C4$ est la plus restrictive. Pour l'exemple, prenons :
+	\begin{equation}
+	\label{E:cv:ordre}
+		C1_m + C2_m < C1_m + C3_m < C4_m
+	\end{equation}
+
+	\textbf{Méthode :}
+	\textit{On traite les branches les plus restrictives en premières car elles impliquent des modifications minimes.} \\
+	
+Dans notre exemple, $C4$ est la plus restrictive, on ne change rien. Ensuite on regarde la branche de $C3$, qui implique une modification de $C1$ et de $C3$. Enfin en regardant $C2$ on s'aperçoit qu'il n'y a pas besoin de retoucher $C1$ (elles ont un ancêtre commun qui est $T2$) mais seulement d'ajuster $C2$ à $C3$ (branches parallèles). \\
+On peut montrer que faire l'inverse serait absurde : les modifications apportées à $C1$ par la branche la plus flexible peuvent ensuite amener à devoir assouplir $C3$, ce qui est contre \hyporef{P:modif}.\\
+
+% Demo
+
+%
+%On note $\Delta_{Cx}$ la taille de l'intervalle min-max de la contrainte x :
+%	\begin{equation}
+%		\Delta_{Cx} = Cx_M - Cx_m
+%	\end{equation}
+%	
+%On pose 
+%	\begin{eqnarray}
+%		\Delta_{m_2} = C4_m - (C2_m + C1_m) \\
+%		\Delta_{m_3} = C4_m - (C3_m + C1_m) \nonumber
+%	\end{eqnarray}
+%L'équation (\ref{E:cv:ordre}) implique 
+%	\begin{equation}
+%	\label{E:cv:delta}
+%		\Delta_{m_3} < \Delta_{m_2} \Rightarrow C2_m < C3_m
+%	\end{equation}
+%En posant
+%	\begin{eqnarray}
+%	\label{E:cv:newVal}
+%		C4_m = C3'_m + C1'_m \\
+%		C4_m = C2'_m + C1''_m \nonumber
+%	\end{eqnarray}
+%
+%Il a deux possibilités pour appliquer la méthode de mise à l'échelle, selon la branche traitée. L'équation (\ref{E:init:scale}) donne donc deux valeurs pour $C1_m$ :
+%	\begin{eqnarray}
+%		C1'_m = C1_m + \Delta_{m_3} \frac{\Delta_{C1}}{\Delta_{C1} + \Delta_{C3}} \\
+%		C1''_m = C1_m + \Delta_{m_2} \frac{\Delta_{C1}}{\Delta_{C1} + \Delta_{C2}} \nonumber
+%	\end{eqnarray}
+%On a donc
+%	\begin{equation}
+%		C1'_m < C1''_m
+%	\end{equation}
+%
+%On prend $C1''_m$ comme nouvelle valeur de $C1_m$. Il faut alors diminuer $C3'_m$ pour respecter (\ref{E:cv:newVal}). Or diminuer un min ne permet pas de garantir \hyporef{P:modif}.
+
 
 \end{document}
