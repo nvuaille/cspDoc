@@ -1,0 +1,139 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{amsthm}
+\usepackage{subfig}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\usepackage[left=2.0cm, right=2.0cm, top=2.50cm, bottom=2.5cm]{geometry}
+\author{Nicolas VUAILLE}
+\title{Résolution par un solveur de contraintes \\ (travail en cours)}
+\date{\today}
+
+\newtheorem{presup}{Hypothèse}
+\newcommand{\hyporef}[1]{l'hypothèse \ref{#1}}
+
+\begin{document}
+\maketitle
+
+\section*{Résumé}
+Dans ce document on présente la version implémentée au \date dans le plug-in iscore-addon-csp. Le solveur utilisé est kiwi (\url{https://github.com/nucleic/kiwi}), une implémentation C++ de Cassowary.
+
+\tableofcontents
+
+
+\section{Mise en équation du problème}
+
+	\begin{figure}[h]
+		\centering
+		\input{KiwiTIKZ/simple_constraint.tex}
+		\schemaScenario simple_constraint
+		\caption{Schéma d'une contrainte entre deux nœuds}
+		\label{S:simple}
+	\end{figure}
+	
+Mathématiquement, contraindre deux n\oe{}uds par C signifie :
+
+	\begin{eqnarray}
+		T1 - T0 = C
+	\end{eqnarray}
+	
+Avec des durées souples, on obtient la figure \ref{S:base}.
+	\begin{figure}[h]
+		\centering
+		\input{KiwiTIKZ/base.tex}
+		\schemaScenario base
+		\caption{Schéma d'une contrainte entre deux nœuds avec souplesse}
+		\label{S:base}
+	\end{figure}
+	
+On note :
+	\begin{eqnarray}
+		C &\in& [C_m, C_M] \\
+		T0 &\in& [T0_m, T0_M] \nonumber \\
+		T1 &\in& [T1_m, T1_M] \nonumber
+	\end{eqnarray}
+
+On obtient l'encadrement suivant : 
+
+	 \begin{eqnarray}
+		 \forall T0 \quad \exists T1 \qquad C_m \leq& T1 - T0 &\leq C_M \\
+		 \Rightarrow T0 + C_m &\leq T1 \leq& T0 + C_M \nonumber
+	 \end{eqnarray}
+
+
+On a donc : 
+	\begin{eqnarray}
+		\label{E:m}
+		T0_m + C_m \leq T1_m \leq T0_m + C1_M \\
+		T0_M + C_m \leq T1_M \leq T1_M + C1_M
+		\label{E:M}
+	\end{eqnarray}
+
+
+	
+	\begin{figure}[h]
+		\centering
+		\subfloat{\input{KiwiTIKZ/simple_constraint_min.tex}
+				\schemaScenario simple_constraint_min}
+		\hspace{0.1\textwidth}
+		\subfloat{\input{KiwiTIKZ/simple_constraint_max.tex}
+				\schemaScenario simple_constraint_max}
+		\caption{T1 a une solution quelque soit T0. \\ Les bornes de T1 sont atteignables}
+		\label{S:large_cstr}
+	\end{figure}
+
+
+En considérant constantes les valeurs des contraintes\footnote{Dans un premier temps, on veut ne pas les toucher car ce sont les valeurs fournies par l'utilisateur.}, les inégalités \eqref{E:m} et \eqref{E:M} appliquées à tout un scénario permettent d'obtenir des valeurs pour tous les timenodes (en sachant que le timenode de début a son min et max à 0).
+
+Un fois cela fait, on peut voir que certaines contraintes ont des valeurs non atteignables. Dans l'exemple de la figure \ref{S:large_cstr} on voit que la contrainte C ne peut jamais valoir la valeur maximale spécifiée.
+
+Mathématiquement cela se traduit comme ceci :
+
+	\begin{eqnarray}
+		\label{E:1_appro}
+		T0_M + C_m \geq T1_m \\
+		T0_m + C_M \leq T1_M \nonumber
+	\end{eqnarray}
+
+Ces inéquations restent cependant assez larges et il est possible de faire mieux. Prenons l'exemple suivant : 
+	\begin{figure}[h]
+		\centering
+		\input{KiwiTIKZ/base_rigide.tex}
+		\schemaScenario base_rigide
+		\caption{Schéma d'une contrainte entre deux nœuds avec souplesse}
+		\label{S:base_rigid}
+	\end{figure}
+
+Les seules inégalités \eqref{E:1_appro} ne permettent pas de rendre compte de la rigidité de C.
+
+On utilise donc à nouveau le solver pour trouver les nouvelles valeurs des contraintes. On recalcule pour chacune d'entre elles en essayant d'écarter au plus ses timenodes puis en essayant de les mettre au plus proche.
+
+\end{document}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,659 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{amsthm}
+\usepackage{subfig}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\usepackage[left=2.0cm, right=2.0cm, top=2.50cm, bottom=2.5cm]{geometry}
+\author{Nicolas VUAILLE}
+\title{Algorithme de propagation \\ (travail en cours)}
+\date{\today}
+
+\newtheorem{presup}{Hypothèse}
+\newcommand{\hyporef}[1]{l'hypothèse \ref{#1}}
+
+\newcommand*{\TikzPath}{../Algo/PropagationTIKZ}% 
+
+\begin{document}
+\maketitle
+
+\section*{Abstract}
+
+La cohérence temporelle d'un scenario interactif est un problème épineux. Si une analyse statique permet déjà de voir les potentiels problèmes, une correction en amont n'est pas forcément bienvenue : le fait d'avoir des branches conditionnelles peut lors de l'exécution libérer le scenario de certaines contraintes et rendre possible des exécutions qui ne le semblaient pas. Une analyse lors de l'exécution est donc nécessaire. \\
+
+Cependant il semble que l'on ai assez d'informations pour anticiper les problèmes, et potentiellement les résoudre. L'approche exposée ici n'est qu'une méthode particulière : il en existe sûrement d'autres. Elle possède donc un certain nombre d'hypothèses sur le scenario considéré. En particulier, il serait bien d'en avoir une implémentation suffisamment rapide pour être utilisé dans i-score. \\
+
+\tableofcontents
+
+\newpage
+\section{Introduction}
+%TODO Blablater, citer les trucs de Simon ... Les problèmes arrivent aux conjonctions, sinon on transmet facilement l'info de proche en proche.\\
+
+	\begin{figure}[h]
+		\centering
+		\input{\TikzPath/general.tex}
+		\schemaScenario general
+		\caption{Schéma général d'une conjonction de deux branches}
+		\label{S:general}
+	\end{figure}
+
+La figure \ref{S:general} présente un extrait de scenario, contenant une branche T0 - T3 - T4 - T5 et une autre T1 - T2 - T4 - T5. Le nœud T4 devant avoir une unique date, il s'en suit que l'exécution d'une branche va dépendre de l'autre.
+
+	\begin{presup}
+		Pour chaque contrainte, la chronologie min - défaut - max est bien assurée.
+		\label{P:Chronologie}
+	\end{presup}
+	\begin{presup}
+		Le scenario possède au moins une solution d'exécution cohérente.
+		\label{P:Executabilite}
+	\end{presup}
+	\begin{proof}[Explication]
+		Une analyse statique à l'édition suffit pour garantir ces deux hypothèses. On suppose également le scenario non modifiable par l'utilisateur pendant l'exécution.
+	\end{proof}
+
+Les contraintes portent des informations de durées, donc de dates relatives à leur début. Ce sont les valeurs auxquelles on a accès en lecture immédiate et en écriture. Or le problème de cohérence porte sur la date absolue d'un timenode. Celle ci est comprise dans un intervalle connu à l'avance par propagation des contraintes comme l'a expliqué Simon Jamain %TODO citation
+et n'est donc pas modifiable directement. On note : 
+	\begin{itemize}
+		\item $Cx$ la durée quelconque d'une contrainte,
+		\item $Cx_m$ sa durée min,
+		\item $Cx_M$ sa durée max,
+		\item $Tx$ la date quelconque d'un timenode,
+		\item $Tx_m$ sa date min,
+		\item $Tx_M$ sa date max.
+		\item $\Delta_{Cx} = Cx_M - Cx_m$ l'intervalle min-max d'une contrainte
+		\item $\Delta_{Tx} = Tx_M - Tx_m$ l'intervalle min-max d'un timenode
+	\end{itemize}
+
+\paragraph*{}
+Dans notre exemple on considère \begin{equation} T0 = T0_m = T0_M \text{ et } T1 = T1_m = T1_M \end{equation}
+On peut donc déduire \begin{equation}T3_m = T0 + C1_m \text{ et } T3_M = T0 + C1_M \label{E:T3}\end{equation}
+De même pour T2 \begin{equation}T2_m = T1 + C2_m \text{ et } T2_M = T1 + C2_M \label{E:T2} \end{equation}
+
+Puisqu'on peut déduire l'intervalle d'un timenode en fonction du timenode précédent et de la contrainte qui les relie, on peut remonter récursivement ainsi jusqu'à un timenode de date connue (au plus loin il s'agira du timenode de Start, à $t=0$). Prenons exemple avec $T4$ : 
+	\begin{eqnarray} 
+		\label{E:coherence}
+		T4_m = T2_m + C3_m & T4_M = T2_M + C3_M \\
+		T4_m = T3_m + C4_m & T4_M = T3_M + C4_M \nonumber
+	\end{eqnarray}
+
+D'après (\ref{E:T3}) et (\ref{E:T2}) on a :
+	\begin{eqnarray} 
+		\label{E:conjonction}
+		T4_m = T1 + C2_m + C3_m &
+		T4_M = T1 + C2_M + C3_M \\
+		T4_m = T0 + C1_m + C4_m &
+		T4_M = T0 + C1_M + C4_M \nonumber
+	\end{eqnarray}
+
+Les durées des contraintes étant données sans présupposé, les deux valeurs obtenus pour $T4_m$ n'ont donc aucune raison d'être identiques. Cependant elles doivent l'être lors de l'exécution. Le but du ce document est donc de montrer comment recalculer les valeurs min et max des contraintes afin d'assurer une cohérence lors de l'exécution.\\
+
+Dans le cas présenté, \textit{a priori} la modification d'une seule valeur (et donc d'une seule contrainte) suffit. Mais afin de respecter \hyporef{P:Chronologie} on peut être amené à modifier deux contraintes. De plus, deux stratégies semblent s'opposer (sur leurs sémantiques) : agrandire ou réduire l'intervalle min-max, c'est à dire faire au plus flexible ou au plus restreint.
+
+	\begin{presup}
+		Les modifications effectuées ne pourront que restreindre les souplesses écrites. \label{P:modif}
+	\end{presup}
+	\begin{proof}[Explication]
+		Dans ce cas les solutions cohérentes proposées feront parties de l'ensemble des solutions initiales, tandis que l'autre stratégie en apporte de nouvelles.
+	\end{proof}
+
+	\begin{presup}
+		Chaque durée écrite dans le scenario fait partie d'une solution réalisable. \label{P:coherent}
+	\end{presup}
+	\begin{proof}[Explication]
+		Ceci peut être vérifié, et, le cas échéant, corrigé lors de l'édition (\textit{cf} section \ref{section:init} sur l'initialisation du système)
+	\end{proof}
+
+%\textbf{Correctif : } Corriger le problème de cohérence à l'édition demande une stratégie. Il faudrait donc en définir une mais je n'en trouve pas qui me plaise ...
+
+\section{Exemple de propagation lors de l'exécution}
+
+	\subsection{Influence du présent sur le futur}
+Reprenons notre exemple initial, à une date $t>0$. On considère que $T0$ et $T1$ ont maintenant leur date effective et que le scenario est cohérent.
+
+On peut vérifier que toutes les durées comprises dans les intervalles défnis sont réalisables, ce qu'on voit sur les figures \ref{S:coherent_min} et \ref{S:coherent_max} en prenant les valeurs extrêmes.
+
+	\begin{figure}[htp]
+	\centering
+		\subfloat[Une solution du scenario cohérent (vérifie \hyporef{P:coherent})]{\input{\TikzPath/coherent.tex}
+				\schemaScenario coherent
+				\label{S:coherent}
+		} \\
+		\subfloat[Les minimums sont cohérents]{\input{\TikzPath/coherent_min.tex}
+				\schemaScenario coherent_min
+				\label{S:coherent_min}
+		}
+		\subfloat[Les maximums sont cohérents]{\input{\TikzPath/coherent_max.tex}
+				\schemaScenario coherent_max
+				\label{S:coherent_max}
+		}
+	\caption{Le scenario vérifie les équations (\ref{E:coherence})}
+	\end{figure}
+
+Si $T3$ est déclenché après la date $C1_m$, cela aura pour effet de repousser $T4_m$.
+	
+	\begin{figure}[htp]
+	\centering
+		\input{\TikzPath/coherent_exec1.tex}
+		\schemaScenario coherent_exec1
+		\caption{Une exécution encore possible une fois $T3$ fixé}
+		\label{S:coherent_exec1}
+	\end{figure}
+
+Mathématiquement on obtient :
+	\begin{eqnarray}
+		\label{E:simplePropagation}
+		T4'_m &=& T4_m + T3 - T3_m \\
+		T4'_M &=& T4_M + T3 - T3_M \nonumber
+	\end{eqnarray}
+	
+	Par la suite on notera :
+	\begin{eqnarray}
+		\label{E:delta}
+		\Delta{}_m = T3 - T3_m = T4'_m - T4_m \\
+		\Delta{}_M = T3 - T3_M = T4'_M - T4_M \nonumber
+	\end{eqnarray}
+
+Mais comment cela influe t-il sur l'autre branche ?
+
+	\subsection{Marche en arrière}
+
+D'après \hyporef{P:modif} on veut essayer de conserver $C2_m$ et $C2_M$, \textit{i.e.} avoir $C2'_m = C2_m$ et $C2'_M = C2_M$ . On cherche donc si il existe des valeurs de $C3$ pour lesquelles une solution est réalisable pour les valeurs extrêmes de $C2$. Littéralement, on cherche si, en prenant $C2'_m = C2_m$, $C3_M$ est assez grand pour permettre encore d'atteindre $T4'_m$, et inversement si $C3_m$ permet d'atteindre $T4$ avant son maximum.
+
+	\begin{eqnarray}
+		T4'_m < T1 + C2'_m + C3_M \\
+		T1 + C2'_M + C3_m < T4'_M \nonumber
+	\end{eqnarray}
+
+Or d'après (\ref{E:conjonction}) et (\ref{E:delta}) :
+
+	\begin{eqnarray}
+		T4'_m = T4_m + \Delta{}_m = T1 + C2_m + C3_m + \Delta{}_m \\
+		T4'_M = T4_M + \Delta{}_M = T1 + C2_M + C3_M + \Delta{}_M \nonumber
+	\end{eqnarray}
+
+On a donc :
+	\begin{eqnarray}
+		\label{E:comparaison}
+		T1 + C2_m + C3_m + \Delta{}_m < T1 + C2'_m + C3_M \\
+		T1 + C2_M + C3_M + \Delta{}_M > T1 + C2'_M + C3_m  \nonumber
+	\end{eqnarray}
+
+D'où :
+	\begin{eqnarray}
+		\label{E:absorbtion}
+		C2'_m = C2_m &\Rightarrow C3_M - C3_m > \Delta{}_m \\
+		C2'_M = C2_M &\Rightarrow C3_M - C3_m > -\Delta{}_M \nonumber
+	\end{eqnarray}
+
+
+	\begin{figure}[htp]
+		\begin{center}
+		\subfloat[$C2$ peut encore être min]{\label{S:coherent_exec_min} \input{\TikzPath/coherent_exec_min.tex}
+			\schemaScenario coherent_exec_min}
+			\hspace{5pt}
+		\subfloat[$C2$ ne peut plus être max]{\label{S:coherent_exec_max} 	\input{\TikzPath/coherent_exec_max.tex}
+			\schemaScenario coherent_exec_max}
+	
+		\caption{Fixer $T3$ à une date peut avoir une incidence sur $C2$}
+		\end{center}
+	\end{figure}
+
+Comme on le voit en figure \ref{S:coherent_exec_max}, notre exemple aboutit à une incohérence car l'équation (\ref{E:absorbtion}) n'est pas vérifiée pour les maximums. D'après \hyporef{P:modif} le seul moyen de résoudre cette incohérence est de diminuer $C2'_M$, que l'on souhaite maximum. \\
+Posons : $$\Delta{C3} = C3_M - C3_m$$
+
+En revenant sur (\ref{E:comparaison}), on obtient :
+
+	\begin{equation}
+		\Delta{}_M = C2'_M - C2_M + C3_m - C3_M \nonumber
+	\end{equation}
+On peut donc poser : 
+	\begin{equation}
+		\Delta{'}_M = C2'_M - C2_M = \Delta{}_M + \Delta{C3} 
+	\end{equation}
+Étant donné (\ref{E:delta}), on sait que les $\Delta{}_M$ sont négatifs. Or $\Delta{C3}$ est positif. On a donc : 
+	\begin{equation}
+		\Delta{}_M  \leq \Delta{'}_M  \leq 0
+	\end{equation}
+
+	\subsection{Résumé}
+
+Fixer la date d'un timenode peut se voir comme changer sa date minimum et sa date maximum pour les rendre égales à une même date intermédiaire. On regarde alors l'influence de ce changement sur le reste du scenario en propageant la différence entre l'ancien minimum (et réciproquement maximum) qui était cohérent avec le reste et le nouveau. \\
+
+Cette propagation se fait en deux étapes. La première est simple et consiste juste à envoyer ces deltas à la suite du scenario. Les problèmes arrivent ensuite, lorsqu'il y a une conjonction entre deux branches. Il faut alors renvoyer ces deltas vers le passé lors d'une deuxième phase, durant laquelle ils sont absorbés petit à petit jusqu'à disparition ou modification du scenario.
+
+\section{Algorithme général}
+	\subsection{Algorithme textuel}
+\label{section:exec}
+Demande de mise à jour d'un timenode (fonction ·\textsc{UpdateTimenode}). Si jetons manquant sur une des contraintes précédentes, mise en attente du timenode. Sinon, récupération des jetons, en conservant les plus restrictifs. Mises à jour du min et max du timenode grâce à ses jetons. On observe toutes ses contraintes précédentes, on vérifie leur cohérence et on renvoie dans le passé si besoin de corriger les valeurs. On envoie ensuite dans le futur un jeton dans toutes les contraintes qui ne portaient pas de jeton arrière. On passe au timenode suivant dans la pile. \\
+
+Une fois la pile finie, on la met à jour en faisant avancer tous les jetons (ceux qui vont de l'avant donc) des contraintes jusqu'à leur timenode. On recommence. \\
+
+Si il reste des timenodes en attente de jeton (donc une partie de leurs contraintes précédente en ont mais pas toutes), on traite ces timenodes.\\
+
+Enfin, on traite les contraintes contenant des jetons vers l'arrière : on demande la mise à jour de leur timenode de début.\\
+
+On recommence du tout début tant qu'il y a des timenodes en attente.
+
+
+	\subsection{Algorithme pseudo code}
+
+Utilisation de jetons
+
+	\begin{algorithm}
+	
+		\begin{algorithmic}[2]
+		\label{C:exec:main}
+			\State Vector<Timenode> tnToUpdate
+			\Comment{Tn de l'étape courante}
+			\State Vector<Timenode> nextStep
+			\Comment {Pour les Tn mis à jour pendant l'étape courante}
+			\State Vector<Timenode> tnWaiting
+			\Comment {Pour les Tn en attente de jetons}
+			\State Vector<Constraint> constraintsWaiting
+			\Comment{Contraintes avec un jeton arrière}
+			\State
+			
+			\While{NOT tnToUpdate empty}
+			\Comment {Tant qu'on atteint des nouveaux timenodes}
+				\While {NOT tnToUpdate.empty} \Comment{On va de l'avant tant que possible}
+					\ForAll{tn in tnToUpdate}
+						\State \Call {UpdateTimenode}{tn}
+					\EndFor
+					\State tnToUpdate = nextStep
+					\Comment{Exploration en largeur}
+					\State clear nextStep
+				\EndWhile
+				\State tnToUpdate = waitingTn
+				\Comment {On traite ceux qui restent en attente}
+				\State clear waitingTn
+				\ForAll{cstr in constraintsWaiting}
+				\Comment {Retour en arrière}
+					\State \Call {UpdateConstraint}{cstr}
+				\EndFor
+			\EndWhile
+		\end{algorithmic}
+	\caption*{Main}
+	\end{algorithm}
+	\begin{algorithm}
+		\begin{algorithmic}[2]
+			
+			\Function{UpdateTimenode}{Timenode Tn}
+				\State Tn.token.min = 0
+				\State Tn.token.max = 0
+				
+				\If{allPreviousToken OR wasWaiting OR backwardToken}
+%				\Comment{Au dernier passage, on prend ceux qui restent}
+					\ForAll {token in Tn.previousTokens}
+					\Comment{Pour chaque jeton}
+						\State Tn.token.min = $max$(token.min, Tn.token.min)
+						\Comment{On prend le plus restrictif} 
+						\State Tn.token.max = $min$(token.max, Tn.token.max)
+					\EndFor
+					\ForAll {token in Tn.nextTokens} 
+%TODO en fait je le fait dans le Update constraint
+						\State Tn.token.min = $max$(token.min, Tn.token.min)
+						\State Tn.token.max = $min$(token.max, Tn.token.max)
+					\EndFor
+					
+					\If {Tn.token.min != 0 || Tn.token.max != 0}
+					\Comment {Jetons nuls stoppent la propagation}
+						\State Tn.min += Tn.token.min 
+						\Comment {Mise à jour du timenode}
+						\State Tn.max += Tn.token.max
+						\State \Call {BackwardUpdate}{Tn}
+						\Comment {N'influe pas sur Tn}
+						\State \Call {ForwardUpdate}{Tn}
+					\EndIf
+				\Else
+					\State tnWaiting$.add$(timenode)
+					\State continue
+				\EndIf
+				
+			\EndFunction
+
+		\end{algorithmic}
+	\end{algorithm}
+	\begin{algorithm}
+		\begin{algorithmic}[2]
+			\Function{BackwardUpdate}{Timenode Tn}
+			\Comment{Retour arrière si nécessaire}
+				\ForAll {cstr in Tn.previousConstraints}
+					\State deltaMin = Tn.min - (cstr.min + cstr.startTn.min)
+					\If{deltaMin > 0}
+					\Comment {Si une incohérence est apparue}
+						\State cstr.token.min = deltaMin
+						\State constraintsWaiting.$add$(cstr)
+						\Comment {Envoi d'un jeton vers l'arrière}
+					\EndIf
+					\State deltaMax = Tn.max - (cstr.max + cstr.startTn.max)
+					\If {deltaMax < 0}
+						\State cstr.token.max = deltaMax
+						\State constraintsWaiting.$add$(cstr)
+						\Comment{Envoi d'un jeton vers l'arrière}
+					\EndIf
+				\EndFor
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	\begin{algorithm}
+		\begin{algorithmic}[2]
+			\Function{ForwardUpdate}{Timenode Tn}
+				\ForAll {cstr in Tn.nextConstraints}
+					\Comment {Propagation vers le futur}
+					\State cstr.token = Tn.token
+					\State nextStep$.add$(cstr.endTimenode)
+					\Comment {Envoi d'un jeton vers l'avant}
+				\EndFor			
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	\begin{algorithm}
+		\begin{algorithmic}[2]
+			\Function{UpdateConstraint}{Constraint cstr}
+
+				\If {startTn Happened}
+				\Comment{mise à jour du min et max}
+					\State cstr.min += cstr.token.min
+					\State cstr.max += cstr.token.max
+				\ElsIf {cstr.max - cstr.min < cstr.token.min}
+				\Comment {min en partie absorbable}
+					\State startTn.token.min = cstr.token.min - (cstr.max - cstr.min)
+					\State waitingtn$.add$(startTn)
+				\ElsIf {cstr.max - cstr.min < - cstr.token.max}
+				\Comment {max en partie absorbable}
+					\State startTn.token.max = cstr.token.max + (cstr.max - cstr.min)
+					\State waitingTn$.add$(startTn)
+				\EndIf
+				\Comment {Sinon, deltas totalement absorbés}
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+
+\newpage
+\section{Initialisation du système}
+\label{section:init}
+
+On utilise toujours le même type d'exploration du scenario. À savoir que pour passer un timenode on doit avoir rencontré toutes ses contraintes précédentes. Lorsque c'est le cas, on vérifie la cohérence des différentes branches qui arrivent, et le cas échéant on les corriges. On propose ici deux méthodes différentes de correction.
+
+	\subsection{Méthode de modification ''au plus proche''}
+		\subsubsection{Description}
+Lorsque le timenode considérée est conflictuel, on modifie les contraintes précédentes, toujours selon \hyporef{P:modif}, en 
+
+		\subsubsection{Pseudo code}
+
+	\begin{algorithm}[htp]
+		\label{A:init:near}
+		\begin{algorithmic}[2]
+			\Function{UpdateTimenode}{Timenode Tn}
+				\If{allToken}
+				\Comment{toutes les contraintes précédentes ont un jeton}
+					\ForAll {previous constraints}
+					\Comment{Mise à jour du timenode (au plus restrictif)}
+						\State Tn.min = $max$(constraint.min + constraintStartTn.min, Tn.min)
+						\State Tn.max = $min$(constraint.max + constraintStartTn.max, Tn.max)
+					\EndFor
+					\ForAll{previous constraints}
+					\Comment{Vérification de la cohérence, retour arrière si besoin}
+						\State constraint.deltaMin = Tn.min - (constraint.min + constraintStartTn.min)
+						\If{constraint.deltaMin > 0}
+							\State constraint needs update
+							\Comment{incohérence}
+						\EndIf
+						\State constraint.deltaMax = Tn.max - (constraint.max + constraintStartTn.max)
+						\If{constraint.deltaMax < 0}
+							\State constraint needs update
+							\Comment{incohérence}
+						\EndIf
+					\EndFor
+					\If{coherency}
+						\ForAll{next constraints}
+							\State sends token
+						\EndFor
+					\EndIf
+				\EndIf
+			\EndFunction
+		\end{algorithmic}
+			\caption*{Initialisation par modification au plus proche}
+	\end{algorithm}	
+	
+	\begin{algorithm}[htp]
+		\begin{algorithmic}[2]
+			\Function{UpdateConstraint}{cstr}
+				\State deltaC = cstr.max - cstr.min
+				\If{cstr.deltaMin + abs(cstr.deltaMax) < deltaC}
+				\Comment{On peut régler totalement l'incohérence}
+					\State cstr.min += cstr.deltaMin
+					\State cstr.max += cstr.deltaMax
+				\Else
+				\Comment{cstr devient rigide et il faut corriger plus en amont}
+					\State cstr.min += cstr.deltaMin $* \frac{\text{deltaC}}{\text{cstr.deltaMin + abs(cstr.deltaMax)}} $
+					\State cstr.max += cstr.deltaMax $* \frac{\text{deltaC}}{\text{cstr.deltaMin + abs(cstr.deltaMax)}} $
+					\State new deltaMin
+					\State new deltaMax
+					\State send it back to start Tn
+				\EndIf
+			\EndFunction
+		\end{algorithmic}
+	\end{algorithm}
+	
+		\subsubsection{Description mathématique}
+					
+	\subsection{Méthode de mise à l'échelle}
+		\subsubsection{Description}
+ La méthode de correction envisagée ici arbitrairement est une mise à l'échelle.\\
+Lorsqu'une correction est effectuée, on repart du timenode de début et on recommence.
+
+		\subsubsection{Pseudo code}
+Le pseudo code en page \pageref{A:init:scale} présente un algorithme d'initialisation du scenario.
+	\begin{algorithm}[htp]
+		\label{A:init:scale}
+		\begin{algorithmic}[2]
+			\Function{Init}{}
+				\State start Tn in stack
+				\While{stack NOT empty}
+					\State \Call {InitUpdate}{stack.first}
+				\EndWhile
+			\EndFunction
+			\State
+		\end{algorithmic}
+		\caption*{Initialisation par mise à l'échelle}
+	\end{algorithm}		
+	\begin{algorithm}[htp]
+		\begin{algorithmic}[2]
+			\Function{InitUpdateTn}{Timenode Tn}
+				\State rm Tn from stack
+				\If{allToken}
+					\ForAll {cstr in Tn.previousConstraints}
+						\State cstr.token.min = Tn.min - (cstr.min + cstr.startTn.min)
+						\State cstr.token.max = Tn.max - (cstr.max + cstr.startTn.max)
+					\EndFor
+					\If{coherency}
+					\Comment{min et max des jetons nuls}
+						\State add next Timenodes to stack
+					\Else
+						\ForAll{c in other constraints}
+							\State $T_{origin}$ = common ancestor of c and cstr
+							\Comment {timenode le plus proche}
+							\State branch = all constraint from $T_{origin}$ to c
+							\State branch to scale
+						\EndFor
+						\State reset stack
+						\Comment {exploration en largeur}
+					\EndIf
+				\EndIf
+			\EndFunction
+			\State
+		\end{algorithmic}
+	\end{algorithm}
+	\begin{algorithm}[htp]		
+		\begin{algorithmic}[2]
+			\Function{ScaleBranches}{Timenode Tn}
+			\Comment {les branches convergent en Tn}
+				\ForAll{constraintes to modify}
+				\Comment {jeton non nul le plus petit}				
+					\State MRConstraint = the more restrictive
+					\ForAll{branches of MRConstraint}
+					\Comment{On cherche jusqu'où remonter chaque branche}
+						\ForAll{constraints non modifiable}
+						\Comment{jetons nuls}
+							\ForAll{Branches of this constraint}
+								\State find the nearest common TN ancestor
+								\State extract a sub-branch
+							\EndFor
+						\EndFor
+					\EndFor
+					\ForAll{sub-branches}
+						\State compute interval max-min
+					\EndFor
+					\State reorder sub-branches by interval size
+					\ForAll{sub-branches}
+						\State take the one with interval min
+						\State submit new min/max to constraints
+						\Comment{mise à l'échelle}
+						\State 
+					\EndFor
+				\EndFor
+			\EndFunction
+		\end{algorithmic}
+
+	\end{algorithm}
+
+	
+Prenons l'exemple de la figure \ref{S:boucles_imbriquees} en considérant toutes les contraintes souples. En explorant, le premier endroit potentiellement à problème est $T3$, convergence des branches $C1 - C3$ et $C2$. Si $C2$ est sur la branche restrictive, on modifie de l'autre côté donc $C3$ est modifiée. Ensuite on recommence l'exploration et on arrive à $T4$. Si $C4$ est sur la branche la plus restrictive, on modifie à nouveau $C3$, ce qui a forcément pour effet de restreindre $T3$ et donc de restreindre $C2$. Et l'algorithme s'arrête.
+
+		\subsubsection{Description mathématique}
+
+On se base sur le schéma de la figure \ref{S:boucles_imbriquees}.\\
+À la convergence au timenode $T$, on a (au moins) deux valeurs en concurrence pour $T_m$ et $T_M$, venant chacune d'une des branches $B_i$, ce qui nous donne un $\Delta_{m_i}$ et un $\Delta_{M_i}$. On note $\Delta_{B_i}$ la taille de l'intervalle en $T$ issue de la propagation des contraintes de la branche $B_i$. On a $\Delta_{B_i} = \sum \Delta_{Cx} \text{ , }Cx \in B_i$ \\
+Pour chaque contrainte $Cx$ des branches convergentes, on a :
+
+\begin{eqnarray}
+	\label{E:init:scale}
+	Cx_{m}' = Cx_m + \Delta_{m_i} *\frac{(Cx_M - Cx_m)}{\Delta_{B_i}}\\
+	Cx_{M}' = Cx_m + \Delta_{M_i} *\frac{(Cx_M - Cx_m)}{\Delta_{B_i}} \nonumber
+\end{eqnarray}
+Le cas $\Delta_{B_i} = 0$ ne nous intéresse pas : il correspond à une branche rigide, qui est donc à la fois la plus restrictive et non modifiable.\\
+Cette formule permet de continuer à vérifier \hyporef{P:Chronologie} pour les min et max et \hyporef{P:modif}.
+
+\section{Limites connues}
+	
+	\subsection{Désactivation d'une branche}
+%TODO desactivation branche
+Y a t'il plus simple qu'une nouvelle initialisation ?
+
+	\subsection{Max infini}
+	Vérifier ce que ça donne.
+	
+\section{Cas particuliers}
+
+	\subsection{Convergence}
+	\begin{figure}[htp]
+		\centering
+		\input{\TikzPath/conjonction.tex}
+		\schemaScenario conjonction
+		\caption{Une convergence simple entre deux branches}
+		\label{S:conjonction}
+	\end{figure}
+C'est l'origine des problèmes. Avant tout processus de traitement de la cohérence, on peut supprimer du scenario étudié les branches ne terminant pas sur une convergence. Dans l'exemple initial (figure \ref{S:general}) on pourrait supprimer la contrainte $C5$ et le timenode $T5$ : ils n'apportent aucun risque d'incohérence.
+
+	\subsection{Boucles}
+Tout scenario ayant un unique timenode de début, en remontant dans le temps depuis une convergence on arrive forcément à une origine commune au deux branches. Cela donne une boucle, comme celles des figures \ref{S:boucle_simple} et \ref{S:boucles_imbriquees}.
+	
+	\begin{figure}[htp]
+		\begin{center}
+				\subfloat[boucle simple]{\label{S:boucle_simple} \input{\TikzPath/boucle_simple.tex}
+					\schemaScenario boucle_simple}
+					\hspace{5pt}
+				\subfloat[boucles imbriquées]{\label{S:boucles_imbriquees} 	\input{\TikzPath/boucles_imbriquees.tex}
+					\schemaScenario boucles_imbriquees}
+			
+				\caption{Plusieurs cas de boucles}
+		\end{center}
+	\end{figure}
+	
+	\subsection{Trigger et souplesse}
+
+	\begin{figure}[htp]
+		\centering
+		\input{\TikzPath/modif_passe.tex}
+		\schemaScenario modif_passe
+		\caption{Problème de causalité}
+		\label{S:modif_passe}
+	\end{figure}
+
+Le scenario \ref{S:modif_passe} est cohérent et respecte les hypothèses posées dans le présent document. Néanmoins, il se pose un problème de causalité : le timenode 3 ne peut pas être celui qui sera fixé à l'exécution. \\
+Dans ce cas, $C1$ et $C3$ sont des contraintes souples, $T1$ peut posséder un trigger tandis que $T3$ ne peut \textit{a priori} pas :
+	\begin{itemize}
+		\item Si $T1$ n'a pas de trigger, la souplesse n'a pas d'intérêt sémantique mais est syntaxiquement correcte.
+		\item Si $T3$ a un trigger, celui ci ne pourra être effectif que si la branche de $C2$ est désactivée.
+	\end{itemize} 
+	
+	\subsection{Convergence multiple}
+
+	\begin{figure}[htp]
+		\centering
+		\input{\TikzPath/multi_cv.tex}
+		\schemaScenario multi_cv
+		\caption{Convergence multiple}
+		\label{S:multi_cv}
+	\end{figure}
+Dans la figure \ref{S:multi_cv} on considère que la contrainte $C4$ est la plus restrictive. Pour l'exemple, prenons :
+	\begin{equation}
+	\label{E:cv:ordre}
+		C1_m + C2_m < C1_m + C3_m < C4_m
+	\end{equation}
+
+	\textbf{Méthode :}
+	\textit{On traite les branches les plus restrictives en premières car elles impliquent des modifications minimes.} \\
+	
+Dans notre exemple, $C4$ est la plus restrictive, on ne change rien. Ensuite on regarde la branche de $C3$, qui implique une modification de $C1$ et de $C3$. Enfin en regardant $C2$ on s'aperçoit qu'il n'y a pas besoin de retoucher $C1$ (elles ont un ancêtre commun qui est $T2$) mais seulement d'ajuster $C2$ à $C3$ (branches parallèles). \\
+On peut montrer que faire l'inverse serait absurde : les modifications apportées à $C1$ par la branche la plus flexible peuvent ensuite amener à devoir assouplir $C3$, ce qui est contre \hyporef{P:modif}.\\
+
+% Demo
+
+%
+%On note $\Delta_{Cx}$ la taille de l'intervalle min-max de la contrainte x :
+%	\begin{equation}
+%		\Delta_{Cx} = Cx_M - Cx_m
+%	\end{equation}
+%	
+%On pose 
+%	\begin{eqnarray}
+%		\Delta_{m_2} = C4_m - (C2_m + C1_m) \\
+%		\Delta_{m_3} = C4_m - (C3_m + C1_m) \nonumber
+%	\end{eqnarray}
+%L'équation (\ref{E:cv:ordre}) implique 
+%	\begin{equation}
+%	\label{E:cv:delta}
+%		\Delta_{m_3} < \Delta_{m_2} \Rightarrow C2_m < C3_m
+%	\end{equation}
+%En posant
+%	\begin{eqnarray}
+%	\label{E:cv:newVal}
+%		C4_m = C3'_m + C1'_m \\
+%		C4_m = C2'_m + C1''_m \nonumber
+%	\end{eqnarray}
+%
+%Il a deux possibilités pour appliquer la méthode de mise à l'échelle, selon la branche traitée. L'équation (\ref{E:init:scale}) donne donc deux valeurs pour $C1_m$ :
+%	\begin{eqnarray}
+%		C1'_m = C1_m + \Delta_{m_3} \frac{\Delta_{C1}}{\Delta_{C1} + \Delta_{C3}} \\
+%		C1''_m = C1_m + \Delta_{m_2} \frac{\Delta_{C1}}{\Delta_{C1} + \Delta_{C2}} \nonumber
+%	\end{eqnarray}
+%On a donc
+%	\begin{equation}
+%		C1'_m < C1''_m
+%	\end{equation}
+%
+%On prend $C1''_m$ comme nouvelle valeur de $C1_m$. Il faut alors diminuer $C3'_m$ pour respecter (\ref{E:cv:newVal}). Or diminuer un min ne permet pas de garantir \hyporef{P:modif}.
+
+
+\end{document}

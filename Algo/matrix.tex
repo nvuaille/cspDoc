@@ -1,0 +1,50 @@
+\documentclass[10pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage[T1]{fontenc}
+\usepackage[hidelinks]{hyperref}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{graphicx}
+\usepackage{tikz}
+\usepackage{amsthm}
+\usepackage{subfig}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
+
+\usepackage[left=2.0cm, right=2.0cm, top=2.50cm, bottom=2.5cm]{geometry}
+\author{Nicolas VUAILLE}
+\title{Algorithme de propagation \\ (travail en cours)}
+\date{\today}
+
+\newtheorem{presup}{Hypothèse}
+\newcommand{\hyporef}[1]{l'hypothèse \ref{#1}}
+
+\begin{document}
+\maketitle
+
+\tableofcontents
+
+\newpage
+
+\section{Ajout de contraintes}
+
+	\subsection{Concept}
+Le problème au cours de l'exécution est qu'un timenode peut être plus contraint par son futur que par son passé. Or le moteur n'est conscient que du passé. Heureusement, cette contrainte venant du future vient en réalité du passé aussi, mais par une branche parallèle. Il s'agit donc de rétablir un lien chronologique, d'écrire explicitement le lien temporel entre une cause et sa conséquence \textit{i.e.} de rajouter une contrainte temporelle entre deux timenode appartenant initialement à des branches distinctes.
+	
+	\subsection{Réalisation}
+On utilise une matrice carrée : timenodes x timenodes. Chaque case correspond à une paire (min, max). On la rempli avec les valeurs de l'utilisateur (contraintes fournies). On peut aussi remplir les inverses : si on a (m, M) dans la case (A, B) de la matrice, on aura (-M, -m) dans la case (B,A).\\
+On peut ensuite calculer toutes les contraintes ``directes`` présentes entre les timenodes, \textit{i.e.} un parcours d'un timenode à l'autre obtenu en se déplaçant uniquement dans le sens chronologique. On obtient aussi leurs inverses.\\
+Enfin, on peut calculer les contraintes indirectes entre deux timenodes, \textit{i.e.} que le parcours entre les deux nécessite de changer de sens au niveau d'un timenode intermédiaire. Encore une fois, ces contraintes ont une inverse.\\
+
+Ce sont ces contraintes indirectes que l'on peut rajouter au scenario afin de garantir une bonne exécution.
+
+	\begin{presup}
+		Il existe au moins une solution au scenario proposé.
+	\end{presup}
+	\begin{proof}[Explication]
+		C'est le cas lorsque le scenario est entièrement créé dans i-score. Si l'hypothèse n'est pas vérifiée, on ne sait pas faire.
+	\end{proof}
+
+\end{document}
